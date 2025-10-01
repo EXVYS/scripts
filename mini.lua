@@ -394,11 +394,11 @@ function Library.Create(Title)
         BorderSizePixel = 0,
     })
     
-    -- Title Label (takes most width)
+    -- Title Label (takes 100% width - CENTERED)
     CreateInstance("TextLabel", {
         Parent = TitleBar,
         BackgroundTransparency = 1,
-        Size = UDim2.new(0.8, 0, 1, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         Text = Title or Config.Name,
         TextColor3 = Config.Theme.Text,
         Font = Enum.Font.SourceSansBold,
@@ -407,7 +407,7 @@ function Library.Create(Title)
         Position = UDim2.new(0, 0, 0, 0),
     })
 
-    -- Minimize Button
+    -- Minimize Button (positioned over the title)
     State.MinimizeButton = CreateInstance("TextButton", {
         Name = "MinimizeButton",
         Parent = TitleBar,
