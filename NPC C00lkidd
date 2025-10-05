@@ -1,0 +1,199 @@
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+-- 🔔 Made by Hecker notification
+StarterGui:SetCore("SendNotification", {
+	Title = "Notification";
+	Text = "Made by Hecker";
+	Duration = 5;
+})
+
+local lp = Players.LocalPlayer
+local char = lp.Character or lp.CharacterAdded:Wait()
+
+-- Create NPC from userId
+local npc = Players:CreateHumanoidModelFromUserId(4376903858)
+npc.Name = "c00lkidd_son"
+npc.Parent = workspace
+npc:MoveTo(char.HumanoidRootPart.Position + Vector3.new(4, 0, 0))
+
+-- Wait for parts
+local hrp = npc:WaitForChild("HumanoidRootPart")
+local hum = npc:WaitForChild("Humanoid")
+
+-- Force R6
+hum.RigType = Enum.HumanoidRigType.R6
+hum.DisplayName = "c00lkidd"
+
+-- Remove Animate script
+local oldAnimate = npc:FindFirstChild("Animate")
+if oldAnimate then oldAnimate:Destroy() end
+
+-- Load R6 animations
+local anims = {
+	idle = "rbxassetid://180435571",
+	walk = "rbxassetid://180426354",
+	jump = "rbxassetid://125750702",
+	fall = "rbxassetid://707829716"
+}
+
+local tracks = {}
+for name, id in pairs(anims) do
+	local anim = Instance.new("Animation")
+	anim.AnimationId = id
+	anim.Name = name
+	anim.Parent = npc
+	tracks[name] = hum:LoadAnimation(anim)
+end
+
+-- Play idle by default
+tracks.idle.Looped = true
+tracks.idle:Play()
+
+-- Walk logic
+hum.Running:Connect(function(speed)
+	if speed > 1 then
+		if not tracks.walk.IsPlaying then
+			tracks.idle:Stop()
+			tracks.walk:Play()
+			tracks.walk.Looped = true
+		end
+	else
+		if not tracks.idle.IsPlaying then
+			tracks.walk:Stop()
+			tracks.idle:Play()
+			tracks.idle.Looped = true
+		end
+	end
+end)
+
+-- Jump and fall
+hum.Jumping:Connect(function()
+	tracks.jump:Play()
+end)
+
+hum.FreeFalling:Connect(function()
+	tracks.fall:Play()
+end)
+
+-- STATE FLAGS
+local followMode = "beside"
+local followEnabled = true
+local isSleeping = false
+local stareEnabled = true
+local isSitting = false -- ✅ New sit flag
+
+-- FOLLOW + STARE LOOP
+task.spawn(function()
+	while npc and npc.Parent and hrp and char and char:FindFirstChild("HumanoidRootPart") do
+		if followEnabled and not isSleeping and not isSitting then
+			local offset = (followMode == "beside") and char.HumanoidRootPart.CFrame.RightVector * 4 or -char.HumanoidRootPart.CFrame.LookVector * 4
+			local targetPos = char.HumanoidRootPart.Position + offset
+			local dist = (targetPos - hrp.Position).Magnitude
+			local moveDir = (targetPos - hrp.Position).Unit
+
+			if dist > 2 then
+				hum:Move(moveDir * 16, false)
+			else
+				hum:Move(Vector3.zero)
+			end
+
+			-- Stare at player
+			if stareEnabled then
+				local pos = hrp.Position
+				local target = char.HumanoidRootPart.Position
+				local lookAt = CFrame.lookAt(pos, Vector3.new(target.X, pos.Y, target.Z))
+				hrp.CFrame = lookAt
+			end
+		else
+			hum:Move(Vector3.zero)
+		end
+		task.wait(0.1)
+	end
+end)
+
+-- KID CHAT BUBBLES
+local messages = {
+	"dad look!",
+	"I'm fast!!",
+	"wait for me!!",
+	"you're so cool",
+	"can I have admin?",
+	"hehe",
+	"I’m learning from you",
+	"you are my dad!! :D",
+	"bro I'm a legend now",
+}
+
+task.spawn(function()
+	while npc and npc:FindFirstChild("Head") do
+		TextChatService:DisplayBubble(npc.Head, messages[math.random(1, #messages)])
+		task.wait(math.random(5, 10))
+	end
+end)
+
+-- COMMANDS
+lp.Chatted:Connect(function(msg)
+	msg = msg:lower()
+
+	if msg == "sleep" then
+		isSleeping = not isSleeping
+		if isSleeping then
+			hum:ChangeState(Enum.HumanoidStateType.Physics)
+			local torso = npc:FindFirstChild("Torso") or npc:FindFirstChild("UpperTorso")
+			if torso then
+				torso.CFrame = torso.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+			end
+			TextChatService:DisplayBubble(npc.Head, "ok dad")
+		else
+			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			TextChatService:DisplayBubble(npc.Head, "I'm awake!")
+		end
+
+	elseif msg == "sit" then -- ✅ SIT command
+		isSitting = true
+		hum.Sit = true
+		TextChatService:DisplayBubble(npc.Head, "oke")
+
+	elseif msg == "stand" then -- ✅ STAND command
+		isSitting = false
+		hum.Sit = false
+		TextChatService:DisplayBubble(npc.Head, "eeeh")
+
+	elseif msg == "jump" then
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		TextChatService:DisplayBubble(npc.Head, "weee")
+
+	elseif msg == "tp" then
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			hrp.CFrame = char.HumanoidRootPart.CFrame * CFrame.new(2, 0, 0)
+			TextChatService:DisplayBubble(npc.Head, ":D")
+		end
+
+	elseif msg == "direct" then
+		followMode = "behind"
+		TextChatService:DisplayBubble(npc.Head, "ok boss")
+
+	elseif msg == "beside" then
+		followMode = "beside"
+		TextChatService:DisplayBubble(npc.Head, "I'm back!")
+
+	elseif msg == "stay where u are" then
+		followEnabled = not followEnabled
+		if not followEnabled then
+			TextChatService:DisplayBubble(npc.Head, "ok I’ll stay here :(")
+		else
+			TextChatService:DisplayBubble(npc.Head, "yay! I'm following again!")
+		end
+
+	elseif msg == "no stare" then
+		stareEnabled = false
+		TextChatService:DisplayBubble(npc.Head, "okeh")
+
+	elseif msg == "stare back :)" then
+		stareEnabled = true
+		TextChatService:DisplayBubble(npc.Head, ":)")
+	end
+end)
