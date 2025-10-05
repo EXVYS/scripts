@@ -1,0 +1,219 @@
+--// King Crimson Full Script
+--// Time Erase + Epitaph (Predictive Future) + Time Skip + Mobile + Sound
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local timeErased = false
+local activeSeat, activeWeld
+local buttonGui
+
+--// Freeze other players (client-side)
+local function freezeOthers(freeze)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character then
+			for _, part in ipairs(p.Character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = freeze
+				end
+			end
+		end
+	end
+end
+
+--// Lag switch seat trick
+local function activateLagSwitch(character)
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+	if not hrp or not torso then return end
+
+	local seat = Instance.new("Seat")
+	seat.Name = "invischair"
+	seat.Transparency = 1
+	seat.Anchored = false
+	seat.CanCollide = false
+	seat.CFrame = hrp.CFrame
+	seat.Parent = workspace
+	activeSeat = seat
+
+	local weld = Instance.new("Weld")
+	weld.Part0 = seat
+	weld.Part1 = torso
+	weld.Parent = seat
+	activeWeld = weld
+end
+
+local function deactivateLagSwitch()
+	if activeWeld then activeWeld:Destroy() activeWeld=nil end
+	if activeSeat then activeSeat:Destroy() activeSeat=nil end
+end
+
+--// End Time Erase
+local function endTimeErase()
+	if not timeErased then return end
+	timeErased = false
+	deactivateLagSwitch()
+	freezeOthers(false)
+
+	for _, e in pairs(Lighting:GetChildren()) do
+		if e:IsA("BlurEffect") or e:IsA("ColorCorrectionEffect") then
+			e:Destroy()
+		end
+	end
+end
+
+--// Start Time Erase
+local function startTimeErase(character)
+	if timeErased then return end
+	timeErased = true
+
+	activateLagSwitch(character)
+	freezeOthers(true)
+
+	local blur = Instance.new("BlurEffect")
+	blur.Size = 15
+	blur.Parent = Lighting
+
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.TintColor = Color3.fromRGB(255,70,70)
+	cc.Saturation = -0.5
+	cc.Parent = Lighting
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://7308966748"
+		sound.Volume = 2
+		sound.Parent = hrp
+		sound:Play()
+	end
+
+	task.delay(10, function()
+		if timeErased then endTimeErase() end
+	end)
+end
+
+--// Epitaph (Predictive)
+local function useEpitaph()
+	local duration = 3
+	local predictionDistance = 10 -- studs to predict ahead
+
+	-- Screen overlay
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.TintColor = Color3.fromRGB(255,120,120)
+	cc.Contrast = 0.2
+	cc.Saturation = -0.3
+	cc.Parent = Lighting
+
+	local blur = Instance.new("BlurEffect")
+	blur.Size = 10
+	blur.Parent = Lighting
+
+	-- Sound
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://3373997607"
+	sound.Volume = 1.5
+	sound.Parent = workspace
+	sound:Play()
+
+	-- Predictive clones
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = p.Character.HumanoidRootPart
+			local clone = hrp:Clone()
+			clone.Anchored = true
+			clone.CanCollide = false
+			clone.Transparency = 0.5
+			clone.Parent = workspace
+
+			-- Predict forward along facing direction
+			local lookVector = hrp.CFrame.LookVector
+			local targetPos = hrp.Position + (lookVector * predictionDistance)
+
+			local tween = TweenService:Create(clone, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
+			tween:Play()
+			Debris:AddItem(clone, duration)
+		end
+	end
+
+	task.delay(duration, function()
+		cc:Destroy()
+		blur:Destroy()
+	end)
+end
+
+--// Time Skip (short teleport forward instead of dash)
+local function useTimeSkip(character)
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	-- distance of teleport forward (tweakable)
+	local teleportDistance = 15
+	local targetPos = hrp.CFrame.Position + (hrp.CFrame.LookVector * teleportDistance)
+
+	-- teleport instantly
+	hrp.CFrame = CFrame.new(targetPos, targetPos + hrp.CFrame.LookVector)
+
+	-- play sound
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://3373980192"
+	sound.Volume = 2
+	sound.Parent = hrp
+	sound:Play()
+end
+
+--// Setup Controls per character
+local function setupControls(character)
+	UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if input.KeyCode == Enum.KeyCode.E then
+			if not timeErased then startTimeErase(character) else endTimeErase() end
+		elseif input.KeyCode == Enum.KeyCode.R then
+			useEpitaph()
+		elseif input.KeyCode == Enum.KeyCode.Q then
+			useTimeSkip(character)
+		end
+	end)
+
+	-- Mobile buttons (stacked vertically)
+	if UserInputService.TouchEnabled and not buttonGui then
+		buttonGui = Instance.new("ScreenGui")
+		buttonGui.Name = "KCButtonGui"
+		buttonGui.ResetOnSpawn = false
+		buttonGui.Parent = player:WaitForChild("PlayerGui")
+
+		local function makeBtn(text,pos,callback)
+			local b = Instance.new("TextButton")
+			b.Size = UDim2.new(0,50,0,50)
+			b.Position = pos
+			b.BackgroundColor3 = Color3.fromRGB(200,0,0)
+			b.TextColor3 = Color3.new(1,1,1)
+			b.Font = Enum.Font.SourceSansBold
+			b.TextSize = 20
+			b.Text = text
+			b.Parent = buttonGui
+			b.MouseButton1Click:Connect(callback)
+			return b
+		end
+
+		local startY = 0.7
+		local gap = 0.07
+
+		makeBtn("Erase", UDim2.new(0.8,0,startY,0), function()
+			if not timeErased then startTimeErase(player.Character or character) else endTimeErase() end
+		end)
+		makeBtn("Epitaph", UDim2.new(0.8,0,startY + gap,0), useEpitaph)
+		makeBtn("Time Skip", UDim2.new(0.8,0,startY + gap*2,0), function()
+			useTimeSkip(player.Character or character)
+		end)
+	end
+end
+
+player.CharacterAdded:Connect(setupControls)
+if player.Character then setupControls(player.Character) end
+
+print("⚡ King Crimson full script loaded: Time Erase (E), Epitaph (R), Time Skip (Q)")
